@@ -8,7 +8,6 @@ import (
 
 	"strconv"
 
-	"github.com/pkg/errors"
 	"github.com/rancher/go-rancher-metadata/metadata"
 	"github.com/rancher/go-rancher/v2"
 	"github.com/rancher/log"
@@ -20,6 +19,7 @@ import (
 )
 
 var VERSION = "v0.1.0-dev"
+var MaxRetries = 2
 
 func main() {
 	logserver.StartServerWithDefaults()
@@ -78,18 +78,48 @@ func run(c *cli.Context) error {
 
 	exit := make(chan error)
 	go func(exit chan<- error) {
-		err := events.ConnectToEventStream(url, ak, sk, scheduler)
-		exit <- errors.Wrapf(err, "Cattle event subscriber exited.")
+		var attempt = 1
+		for {
+			err := events.ConnectToEventStream(url, ak, sk, scheduler)
+			if err != nil && attempt > MaxRetries {
+				log.Debug("connectToEventStream exceeded max-retry limit with error %s", err.Error())
+				break
+			} else {
+				attempt++
+				log.Debugf("make ConnectToEventStream retry %d", attempt)
+			}
+		}
+		exit <- fmt.Errorf("cattle event subscriber exited: %s", err.Error())
 	}(exit)
 
 	go func(exit chan<- error) {
-		err := resourcewatchers.WatchMetadata(mdClient, scheduler, apiClient)
-		exit <- errors.Wrap(err, "Metadata watcher exited")
+		var attempt = 1
+		for {
+			err := resourcewatchers.WatchMetadata(mdClient, scheduler, apiClient)
+			if err != nil && attempt > MaxRetries {
+				log.Debug("watchMetadata exceeded max-retry limit with error %s", err.Error())
+				break
+			} else {
+				attempt++
+				log.Debugf("make watchMetadata retry %d", attempt)
+			}
+		}
+		exit <- fmt.Errorf("metadata watcher exited: %s", err.Error())
 	}(exit)
 
 	go func(exit chan<- error) {
-		err := startHealthCheck(c.Int("health-check-port"), mdClient)
-		exit <- errors.Wrapf(err, "Healthcheck provider died.")
+		var attempt = 1
+		for {
+			err := startHealthCheck(c.Int("health-check-port"), mdClient)
+			if err != nil && attempt > MaxRetries {
+				log.Debug("startHealthCheck exceeded max-retry limit with error %s", err.Error())
+				break
+			} else {
+				attempt++
+				log.Debugf("make startHealthCheck retry %d", attempt)
+			}
+		}
+		exit <- fmt.Errorf("healthcheck provider died: %s", err.Error())
 	}(exit)
 
 	go func() {
