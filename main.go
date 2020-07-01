@@ -78,6 +78,14 @@ func run(c *cli.Context) error {
 
 	exit := make(chan error)
 	go func(exit chan<- error) {
+		defer func() {
+			if r := recover(); r != nil {
+				switch e := r.(type) {
+				case error:
+					log.Fatal(e)
+				}
+			}
+		}()
 		var attempt = 1
 		for {
 			err := events.ConnectToEventStream(url, ak, sk, scheduler)
@@ -93,6 +101,14 @@ func run(c *cli.Context) error {
 	}(exit)
 
 	go func(exit chan<- error) {
+		defer func() {
+			if r := recover(); r != nil {
+				switch e := r.(type) {
+				case error:
+					log.Fatal(e)
+				}
+			}
+		}()
 		var attempt = 1
 		for {
 			err := resourcewatchers.WatchMetadata(mdClient, scheduler, apiClient)
@@ -108,6 +124,14 @@ func run(c *cli.Context) error {
 	}(exit)
 
 	go func(exit chan<- error) {
+		defer func() {
+			if r := recover(); r != nil {
+				switch e := r.(type) {
+				case error:
+					log.Fatal(e)
+				}
+			}
+		}()
 		var attempt = 1
 		for {
 			err := startHealthCheck(c.Int("health-check-port"), mdClient)
@@ -123,6 +147,14 @@ func run(c *cli.Context) error {
 	}(exit)
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				switch e := r.(type) {
+				case error:
+					log.Fatal(e)
+				}
+			}
+		}()
 		for {
 			t.Sleep(t.Minute * 3)
 			log.Info("Syncing scheduler information with rancher metadata")
